@@ -1,60 +1,47 @@
-/* Drivon Stackx - Core Engine 
-   Dependencies: GSAP, ScrollTrigger, Three.js, Swiper, SplitType, Lucide
-*/
+/**
+ * Drivon Stackx - Core Engine (Stable v3)
+ * Исправлена проблема "пустых карточек" и точность ScrollTrigger.
+ */
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 0. Initialization
-    lucide.createIcons();
+window.addEventListener('load', () => {
+    // Регистрация плагина и первая отрисовка иконок
     gsap.registerPlugin(ScrollTrigger);
+    lucide.createIcons();
 
-    // 1. MOBILE MENU LOGIC
-    const burger = document.getElementById('burger');
-    const mobileMenu = document.getElementById('mobile-menu');
-    const mobileLinks = document.querySelectorAll('.mobile-link');
+    /** 1. МОБИЛЬНОЕ МЕНЮ */
+    const initMobileMenu = () => {
+        const burger = document.querySelector('#burger');
+        const menu = document.querySelector('#mobile-menu');
+        const links = document.querySelectorAll('.mobile-link');
+        if (!burger || !menu) return;
 
-    const toggleMenu = () => {
-        burger.classList.toggle('burger--active');
-        mobileMenu.classList.toggle('mobile-menu--active');
-        document.body.style.overflow = mobileMenu.classList.contains('mobile-menu--active') ? 'hidden' : '';
-        
-        if(mobileMenu.classList.contains('mobile-menu--active')) {
-            gsap.to(mobileLinks, {
-                y: 0,
-                opacity: 1,
-                stagger: 0.1,
-                delay: 0.3,
-                ease: "power2.out"
-            });
-        }
+        const toggle = () => {
+            const isActive = menu.classList.toggle('mobile-menu--active');
+            burger.classList.toggle('burger--active');
+            document.body.style.overflow = isActive ? 'hidden' : '';
+            if (isActive) {
+                gsap.fromTo(links, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, delay: 0.2 });
+            }
+        };
+        burger.addEventListener('click', toggle);
+        links.forEach(link => link.addEventListener('click', toggle));
     };
 
-    burger.addEventListener('click', toggleMenu);
-    mobileLinks.forEach(link => link.addEventListener('click', toggleMenu));
-
-    // 2. THREE.JS HERO BACKGROUND (Optimized)
-    const initHeroScene = () => {
-        const canvas = document.getElementById('hero-canvas');
+    /** 2. THREE.JS HERO */
+    const initHero3D = () => {
+        const canvas = document.querySelector('#hero-canvas');
         if (!canvas || window.innerWidth < 768) return;
-
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 30;
-
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        camera.position.z = 30;
 
         const group = new THREE.Group();
-        const geometry = new THREE.BufferGeometry();
-        const points = [];
-        for (let i = 0; i < 200; i++) {
-            points.push((Math.random() - 0.5) * 60, (Math.random() - 0.5) * 60, (Math.random() - 0.5) * 60);
-        }
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-        
-        const material = new THREE.PointsMaterial({ color: 0xc5a687, size: 0.2 });
-        const system = new THREE.Points(geometry, material);
-        group.add(system);
+        const geometry = new THREE.IcosahedronGeometry(10, 1);
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x4a3b34, wireframe: true, transparent: true, opacity: 0.2 }));
+        const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xc5a687, size: 0.4 }));
+        group.add(mesh, points);
         scene.add(group);
 
         const animate = () => {
@@ -63,108 +50,89 @@ document.addEventListener('DOMContentLoaded', () => {
             renderer.render(scene, camera);
         };
         animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     };
 
-    // 3. HERO TEXT ANIMATION
+    /** 3. HERO TEXT */
     const initHeroText = () => {
-        const title = new SplitType('.hero__title', { types: 'words' });
-        gsap.from(title.words, {
-            y: 50,
-            opacity: 0,
-            stagger: 0.05,
-            duration: 1,
-            ease: "power4.out",
-            delay: 0.5
-        });
-        gsap.from('.hero__badge, .hero__btns', {
-            opacity: 0,
-            y: 20,
-            duration: 1,
-            delay: 1
-        });
+        const title = document.querySelector('.hero__title');
+        if (!title) return;
+        new SplitType(title, { types: 'words' });
+        gsap.timeline()
+            .from('.hero__badge', { opacity: 0, y: 20 })
+            .from('.hero__title .word', { opacity: 0, y: 30, stagger: 0.05, duration: 0.8 })
+            .from('.hero__subtitle, .hero__btns', { opacity: 0, y: 20, stagger: 0.1 }, "-=0.4");
     };
 
-    // 4. DEEP STRATEGIES ANIMATION (The "Deep" Part)
+    /** 4. СТРАТЕГИИ - ИСПРАВЛЕННАЯ ПОДГРУЗКА */
     const initStrategies = () => {
         const cards = document.querySelectorAll('.strategy-card');
-        
+        if (cards.length === 0) return;
+
         cards.forEach((card) => {
+            // Ищем внутренние элементы
             const icon = card.querySelector('.strategy-card__icon');
             const title = card.querySelector('.strategy-card__title');
             const text = card.querySelector('.strategy-card__text');
             const num = card.querySelector('.strategy-card__number');
 
+            // Основной таймлайн появления карточки
             const tl = gsap.timeline({
                 scrollTrigger: {
                     trigger: card,
-                    start: "top 85%",
+                    start: "top 90%",
                     toggleActions: "play none none none"
                 }
             });
 
-            tl.from(card, { scale: 0.9, opacity: 0, duration: 0.6 })
-              .from(icon, { y: 20, opacity: 0, duration: 0.4 }, "-=0.2")
-              .from(title, { x: -20, opacity: 0, duration: 0.4 }, "-=0.2")
-              .from(text, { opacity: 0, duration: 0.4 }, "-=0.2")
-              .from(num, { scale: 0, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, "-=0.3");
+            // Анимируем "К" финальному состоянию (opacity: 1)
+            tl.to(card, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" })
+              .from(icon, { scale: 0.5, opacity: 0, duration: 0.4 }, "-=0.3")
+              .from([title, text], { y: 15, opacity: 0, stagger: 0.1, duration: 0.4 }, "-=0.2")
+              .from(num, { x: 20, opacity: 0, duration: 0.4 }, "-=0.2");
         });
     };
 
-    // 5. SWIPER & BLOG
-    const initSliders = () => {
-        new Swiper('.cases-slider', {
-            loop: true,
-            pagination: { el: '.swiper-pagination' },
-            navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' }
-        });
+    /** 5. ОСТАЛЬНЫЕ МОДУЛИ */
+    const initCases = () => {
+        if (document.querySelector('.cases-slider')) {
+            new Swiper('.cases-slider', {
+                loop: true,
+                pagination: { el: '.swiper-pagination', clickable: true },
+                navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+            });
+        }
     };
 
-    // 6. FORM LOGIC & CAPTCHA
-    const initForm = () => {
-        const form = document.getElementById('contact-form');
-        if(!form) return;
-
-        const captchaEl = document.getElementById('captcha-question');
-        const n1 = Math.floor(Math.random() * 10), n2 = Math.floor(Math.random() * 10);
-        captchaEl.innerText = `${n1} + ${n2} = ?`;
+    const initContactForm = () => {
+        const form = document.querySelector('#contact-form');
+        if (!form) return;
+        const captchaEl = document.querySelector('#captcha-question');
+        const n1 = Math.floor(Math.random()*10), n2 = Math.floor(Math.random()*10);
+        if (captchaEl) captchaEl.innerText = `${n1} + ${n2} = ?`;
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const ans = document.getElementById('captcha-answer').value;
-            if(parseInt(ans) === (n1+n2)) {
-                const msg = document.getElementById('form-message');
-                msg.innerText = "Успешно отправлено!";
-                msg.className = "form__message form__message--success";
+            const ans = parseInt(document.querySelector('#captcha-answer').value);
+            if (ans === (n1 + n2)) {
+                document.getElementById('form-message').className = "form__message form__message--success";
+                document.getElementById('form-message').innerText = "Успешно отправлено!";
                 form.reset();
-            } else {
-                alert("Ошибка капчи");
+                lucide.createIcons();
             }
         });
     };
 
-    // 7. COOKIES
-    const initCookies = () => {
-        const popup = document.getElementById('cookie-popup');
-        if(!localStorage.getItem('cookie_ok')) {
-            setTimeout(() => popup.classList.add('cookie-popup--show'), 2000);
-        }
-        document.getElementById('cookie-accept').onclick = () => {
-            localStorage.setItem('cookie_ok', 'true');
-            popup.classList.remove('cookie-popup--show');
-        };
-    };
-
-    // RUN ALL
-    initHeroScene();
+    /** ЗАПУСК И ПЕРЕСЧЕТ */
+    initMobileMenu();
+    initHero3D();
     initHeroText();
     initStrategies();
-    initSliders();
-    initForm();
-    initCookies();
+    initCases();
+    initContactForm();
+
+    // Финальный штрих: пересчитываем всё после того, как иконки и шрифты встали
+    setTimeout(() => {
+        ScrollTrigger.refresh();
+        lucide.createIcons(); // Повторно на случай, если иконки внутри карт не отрисовались
+    }, 500);
 });
